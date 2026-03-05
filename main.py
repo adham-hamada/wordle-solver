@@ -26,7 +26,7 @@ def get_pattern_code(word, guess):
             if guess[i] in available and available[guess[i]]>0:
                 pattern[i]=1
                 available[guess[i]] -= 1
-    return (pattern[0] * 81) + (pattern[1] * 27) + (pattern[2] * 9) + (pattern[3] * 3) + (pattern[4] * 1)
+    return (pattern[4] * 81) + (pattern[3] * 27) + (pattern[2] * 9) + (pattern[1] * 3) + (pattern[0] * 1)
 
 def make_pattern_matrix():
     pattern_matrix = np.zeros((G, A), dtype=np.uint8)
