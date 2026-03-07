@@ -1,143 +1,88 @@
 import numpy as np
 import math
 import json
-
-data = np.load("pattern_matrix.npy")
+import os
+from utils import wordlesolver
 
 with open('dictionary_5_letter.json', 'r') as f:
     guess_list = json.load(f)
 with open('targets_5_letter.json', 'r') as f:
     target_list = json.load(f)
 
-G = len(guess_list)
-A = len(target_list)
+guess_index  = {word: i for i, word in enumerate(guess_list)}
+target_index = {word: j for j, word in enumerate(target_list)}
 
-def get_pattern_code(word, guess):
-    pattern = [0] * 5
-    available = {}
-
-    for i in range(5):
-        if guess[i] == word[i]:
-            pattern[i] = 2
-        else:
-            available[word[i]] = available.get(word[i],0)+1
-    for i in range(5):
-        if pattern[i]==0:
-            if guess[i] in available and available[guess[i]]>0:
-                pattern[i]=1
-                available[guess[i]] -= 1
-    return (pattern[4] * 81) + (pattern[3] * 27) + (pattern[2] * 9) + (pattern[1] * 3) + (pattern[0] * 1)
-
-def make_pattern_matrix():
-    pattern_matrix = np.zeros((G, A), dtype=np.uint8)
-    for i, guess in enumerate(guess_list):
-        for j, target in enumerate(target_list):
-            pattern_matrix[i, j] = get_pattern_code(target, guess)
-    np.save('pattern_matrix.npy', pattern_matrix)
-
-guess_index = {word: i for i , word in enumerate(guess_list)}
-target_index = {word: j for j , word in enumerate(target_list)}
-# feedback encoding an integer [0,242]
-def pattern_str_to_code(pattern):
-    base = {"r": 0, "y": 1, "g": 2}
-    code = 0
-    for ind in range(5):
-        code += base[pattern[ind]] * (3 ** ind)
-    return code
-
-def pattern_code_to_str(code):
-    base = {0:"r", 1:"y", 2:"g"}
-    pattern =""
-    for i in range(5):
-        pattern+=base[(code)%3]
-        code = int(code/3)
-    return "".join(reversed(pattern))
+solver = wordlesolver(
+    remaining_i = np.arange(len(target_list)),
+    word        = "",          
+    guess       = "",          
+    data        = None,        
+    target_list = target_list,
+    guess_list  = guess_list,
+    guess_index = guess_index,
+)
 
 
-#entropy-based ranking
+if not os.path.exists('pattern_matrix.npy'):
+    X = solver.build_matrix(guess_list, target_list)
+    np.save('pattern_matrix.npy', X)
 
-def get_entropy(guess_i,remaining_i):
-    patterns = data[guess_i, remaining_i]  
-    _, counts = np.unique(patterns, return_counts=True)
-    probs = counts / len(remaining_i)
-    return -np.sum(probs * np.log2(probs))
-
-def get_best_guess(remaining_i):
-    best_guess = None
-    best_entropy = -np.inf
-    # Fix: compare words, not indices from different lists
-    remaining_words = set(target_list[j] for j in remaining_i)
-
-    candidates_to_search = (
-        list(remaining_words)
-        if len(remaining_i) <= 2
-        else guess_list
-    )
-
-    for guess in candidates_to_search:
-        i = guess_index[guess]
-        entropy = get_entropy(i, remaining_i)
-
-        is_better = entropy > best_entropy
-        is_tie_and_preferred = (
-            entropy == best_entropy and
-            guess in remaining_words and          # Fix: word-level check
-            best_guess not in remaining_words     # Fix: word-level check
-        )
-
-        if is_better or is_tie_and_preferred:
-            best_entropy = entropy
-            best_guess = guess
-
-    return best_guess
-
-
-# def main():
-#     remaining_i = np.arange(A)
-
-#     while len(remaining_i) >= 1:
-#         best_guess = get_best_guess(remaining_i)
-#         print("BEST:",best_guess)
-#         feedback = input().strip()
-#         feedback_code = pattern_str_to_code(feedback)
-
-#         guess_i = guess_index[best_guess]
-#         filter_data = data[guess_i,remaining_i] == feedback_code
-#         remaining_i = remaining_i[filter_data]
+data = np.load("pattern_matrix.npy")
+solver.data = data
 
 def main():
-    remaining_i = np.arange(A)
+    remaining_i = np.arange(len(target_list))
+    while True:
+        prior_H = math.log2(len(remaining_i)) if len(remaining_i) > 1 else 0.0
 
-    while len(remaining_i) >= 1:  # Fixed: was >= 1
-        best_guess = get_best_guess(remaining_i)
-        print(f"BEST: {best_guess}  ({len(remaining_i)} candidates remaining)")
+        best_guess, best_H_Y = solver.get_best_guess(remaining_i)
 
-        feedback = input().strip()
+        posterior_H = prior_H - best_H_Y
+        info_gain   = best_H_Y
 
-        # Win condition: correct guess
-        if feedback == "ggggg":
-            print("Solved:", best_guess)
+        print(f"Candidates remaining : {len(remaining_i)}")
+        print(f"H(W)                 = {prior_H:.4f} bits")
+        print(f"H(Y) best guess      = {best_H_Y:.4f} bits  (word: {best_guess})")
+        print(f"H(W|Y)               = {posterior_H:.4f} bits")
+        print(f"I(W;Y)               = {info_gain:.4f} bits")
+
+        print(f"BEST={best_guess}")
+
+        guess_input = input().strip()
+
+        feedback_str = input().strip()
+
+        if feedback_str == "ggggg":
+            print(f"Solved: {guess_input}")
             return
 
-        feedback_code = pattern_str_to_code(feedback)
-        guess_i = guess_index[best_guess]
+        feedback_code = solver.pattern_str_to_code(feedback_str)
 
+        if guess_input not in guess_index:
+            print("Unknown guess word — aborting.")
+            return
+
+        guess_i = guess_index[guess_input]
         filter_data = data[guess_i, remaining_i] == feedback_code
         remaining_i = remaining_i[filter_data]
 
-        # Guard: invalid feedback wiped all candidates
         if len(remaining_i) == 0:
             print("No candidates left — check your feedback input.")
             return
 
-    # Only one candidate left — it must be the answer
-    if len(remaining_i) == 1:
-        print("Answer:", target_list[remaining_i[0]])
-    else:
-        print("No solution found.")
+        if len(remaining_i) == 1:
+            only_word = target_list[remaining_i[0]]
+            print(f"Candidates remaining : 1")
+            print(f"H(W)                 = 0.0000 bits")
+            print(f"H(Y) best guess      = 0.0000 bits  (word: {only_word})")
+            print(f"H(W|Y)               = 0.0000 bits")
+            print(f"I(W;Y)               = 0.0000 bits")
+            print(f"BEST={only_word}")
 
-main()
-
-
-
-
+            guess_input  = input().strip()
+            feedback_str = input().strip()
+            print(f"Solved: {guess_input}")
+            return
+        
+if __name__ == "__main__":
+    main()
