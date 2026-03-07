@@ -129,7 +129,9 @@ def main():
 
         guess_input = input().strip()
 
-        feedback_str = input().strip()
+        feedback_str = input().strip()[:5]
+        feedback_str = feedback_str.lower()
+
 
         if feedback_str == "ggggg":
             print(f"Solved: {guess_input}")
