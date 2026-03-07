@@ -78,10 +78,6 @@ def main():
             print(f"H(W|Y)               = 0.0000 bits")
             print(f"I(W;Y)               = 0.0000 bits")
             print(f"BEST={only_word}")
-
-            guess_input  = input().strip()
-            feedback_str = input().strip()
-            print(f"Solved: {guess_input}")
             return
         
 if __name__ == "__main__":
