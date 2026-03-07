@@ -74,11 +74,10 @@ class wordlesolver():
         best_entropy = -np.inf
         remaining_words = set(self.target_list[j] for j in remaining_i)
 
-        candidates_to_search = (
-            list(remaining_words)
-            if len(remaining_i) <= 2
-            else self.guess_list
-        )
+        if len(remaining_i) <= 2:
+            candidates_to_search = list(remaining_words)
+        else:
+            candidates_to_search = self.guess_list
 
         for guess in candidates_to_search:
             i = self.guess_index[guess]
