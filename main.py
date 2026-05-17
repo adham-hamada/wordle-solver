@@ -53,7 +53,7 @@ def main():
         feedback_str = input().strip()
 
         if feedback_str == "ggggg":
-            print(f"Solved: {guess_input}")
+            print(f"BEST={best_guess}")
             return
 
         feedback_code = solver.pattern_str_to_code(feedback_str)
